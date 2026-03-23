@@ -4,6 +4,10 @@ import SwiftData
 struct ChatView: View {
     @Environment(LLMService.self) private var llm
     @Environment(\.modelContext) private var modelContext
+    @Environment(ImagePickerCoordinator.self) private var imagePickerCoordinator
+    @Environment(AudioPickerCoordinator.self) private var audioPickerCoordinator
+    @Environment(EmailComposerCoordinator.self) private var emailComposerCoordinator
+    @Environment(\.documentService) private var documentService
 
     @State private var conversation: Conversation = Conversation()
     @State private var inputText: String = ""
@@ -11,13 +15,24 @@ struct ChatView: View {
     @State private var scrollProxy: ScrollViewProxy? = nil
     @State private var latestMessageID: UUID? = nil
     @State private var showSettings = false
+    @State private var showDocuments = false
+    @State private var showHistory = false
     @State private var speechService = SpeechService()
     @State private var isListening = false
+
+    // Sheet state derived from coordinator.pendingRequest
+    @State private var showImagePicker = false
+    @State private var showDocumentScanner = false
+    @State private var activePicker: ImagePickerCoordinator.PickerSource? = nil
+    @State private var showAudioPicker = false
+    @State private var showEmailComposer = false
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            JarvisHeader(state: llm.state) {
+            JarvisHeader(state: llm.state, onHistory: {
+                showHistory = true
+            }) {
                 showSettings = true
             }
 
@@ -68,11 +83,104 @@ struct ChatView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showHistory) {
+            ConversationListView()
+        }
+        .sheet(isPresented: $showDocuments) {
+            if let docService = documentService {
+                DocumentListView(documentService: docService)
+            }
+        }
+        .sheet(isPresented: $showImagePicker, onDismiss: {
+            // If user dismissed sheet without picking, cancel the pending request
+            if let source = activePicker, source != .documentScanner {
+                imagePickerCoordinator.cancel()
+            }
+            activePicker = nil
+        }) {
+            if let source = activePicker {
+                ImagePickerView(source: source) { cgImage in
+                    imagePickerCoordinator.deliverImage(cgImage)
+                    showImagePicker = false
+                    activePicker = nil
+                }
+            }
+        }
+        .sheet(isPresented: $showDocumentScanner, onDismiss: {
+            if activePicker == .documentScanner {
+                imagePickerCoordinator.cancel()
+            }
+            activePicker = nil
+        }) {
+            DocumentScannerView { pages in
+                // Deliver the first page; multi-page results are surfaced via analyzeDocument
+                imagePickerCoordinator.deliverImage(pages.first)
+                showDocumentScanner = false
+                activePicker = nil
+            }
+        }
         .onAppear {
             modelContext.insert(conversation)
         }
+        .onDisappear {
+            saveConversationSummary()
+            speechService.stopSpeaking()
+            if isListening {
+                _ = speechService.stopListening()
+                isListening = false
+            }
+        }
         .task {
             _ = await speechService.requestAuthorization()
+        }
+        .sheet(isPresented: $showAudioPicker, onDismiss: {
+            audioPickerCoordinator.cancel()
+        }) {
+            AudioPickerView { url in
+                audioPickerCoordinator.deliverFile(url)
+                showAudioPicker = false
+            }
+        }
+        .onChange(of: imagePickerCoordinator.pendingRequest) { _, newRequest in
+            guard let request = newRequest else { return }
+            activePicker = request
+            switch request {
+            case .camera, .photoLibrary:
+                showImagePicker = true
+            case .documentScanner:
+                showDocumentScanner = true
+            }
+        }
+        .onChange(of: audioPickerCoordinator.isPicking) { _, isPicking in
+            if isPicking {
+                showAudioPicker = true
+            }
+        }
+        .sheet(isPresented: $showEmailComposer, onDismiss: {
+            emailComposerCoordinator.deliverResult(sent: false)
+        }) {
+            if let email = emailComposerCoordinator.pendingEmail {
+                EmailComposerView(
+                    to: email.to,
+                    subject: email.subject,
+                    body: email.body
+                ) { sent in
+                    emailComposerCoordinator.deliverResult(sent: sent)
+                    showEmailComposer = false
+                }
+            }
+        }
+        .onChange(of: emailComposerCoordinator.hasPendingEmail) { _, hasPending in
+            if hasPending {
+                showEmailComposer = true
+            }
+        }
+        // Handle questions arriving from Siri (AskJarvisIntent sets pendingQuestion)
+        .onChange(of: JarvisEngine.shared.pendingQuestion) { _, question in
+            guard let q = question, !q.isEmpty else { return }
+            JarvisEngine.shared.pendingQuestion = nil
+            inputText = q
+            sendMessage()
         }
     }
 
@@ -80,6 +188,18 @@ struct ChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
+            // Paperclip button — only visible when document service is available
+            if documentService != nil {
+                Button {
+                    showDocuments = true
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.title3)
+                        .foregroundStyle(.gray)
+                        .frame(width: 36, height: 36)
+                }
+            }
+
             TextField("Messaggio...", text: $inputText, axis: .vertical)
                 .font(.body)
                 .foregroundStyle(.white)
@@ -142,7 +262,7 @@ struct ChatView: View {
 
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isGenerating else { return }
+        guard !text.isEmpty, !isGenerating, llm.state == .ready else { return }
 
         inputText = ""
         isGenerating = true
@@ -174,14 +294,25 @@ struct ChatView: View {
                 conversation.title = String(text.prefix(40))
             }
 
-            // Speak response
-            if !assistantMsg.content.isEmpty {
-                await speechService.speak(assistantMsg.content)
-            }
-
             try? modelContext.save()
             isGenerating = false
+
+            // Compact context if conversation is getting too long
+            let compactor = ContextCompactor(
+                llmService: llm,
+                memoryService: MemoryService(modelContext: modelContext)
+            )
+            compactor.compactIfNeeded(conversation: conversation)
         }
+    }
+
+    // MARK: - Summary helpers
+
+    private func saveConversationSummary() {
+        guard conversation.summary == nil,
+              !conversation.sortedMessages.isEmpty else { return }
+        conversation.summary = ContextCompactor.buildSummary(from: conversation.sortedMessages)
+        try? modelContext.save()
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {

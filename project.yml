@@ -38,6 +38,7 @@ targets:
         NSLocationWhenInUseUsageDescription: Jarvis usa la posizione per risposte contestuali
         NSCameraUsageDescription: Jarvis analizza le foto che scatti
         NSPhotoLibraryUsageDescription: Jarvis analizza le immagini dalla libreria
+        NSSiriUsageDescription: Jarvis usa Siri per rispondere alle tue domande con AI on-device
         UILaunchScreen:
           UIColorName: ""
           UIImageName: ""
@@ -45,11 +46,15 @@ targets:
           - UIInterfaceOrientationPortrait
     entitlements:
       path: Jarvis/Resources/Jarvis.entitlements
+      properties:
+        com.apple.developer.siri: true
     dependencies:
       - package: mlx-swift-lm
         product: MLXLLM
       - package: mlx-swift-lm
         product: MLXLMCommon
+      - package: mlx-swift-lm
+        product: MLXEmbedders
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jarvis.app

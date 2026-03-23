@@ -2,6 +2,7 @@ import SwiftUI
 
 struct JarvisHeader: View {
     let state: LLMService.State
+    let onHistory: () -> Void
     let onSettings: () -> Void
 
     private var statusColor: Color {
@@ -50,6 +51,13 @@ struct JarvisHeader: View {
                 .foregroundStyle(.gray)
 
             Spacer()
+
+            // History button
+            Button(action: onHistory) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.body)
+                    .foregroundStyle(.gray)
+            }
 
             // Settings button
             Button(action: onSettings) {

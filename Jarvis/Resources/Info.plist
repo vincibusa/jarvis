@@ -32,6 +32,8 @@
 	<string>Jarvis analizza le immagini dalla libreria</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Jarvis crea e legge i promemoria</string>
+	<key>NSSiriUsageDescription</key>
+	<string>Jarvis usa Siri per rispondere alle tue domande con AI on-device</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Jarvis usa il riconoscimento vocale on-device</string>
 	<key>UILaunchScreen</key>

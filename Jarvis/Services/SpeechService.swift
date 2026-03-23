@@ -109,6 +109,12 @@ final class SpeechService: NSObject {
 
         // Stop any ongoing recognition
         if listeningState != .idle { _ = stopListening() }
+
+        // If already speaking, cancel and let delegate resume the old continuation before proceeding
+        if isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+
         configureAudioSession(forRecording: false)
 
         // Strip markdown and formatting artifacts

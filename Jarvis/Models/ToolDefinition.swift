@@ -2,6 +2,37 @@ import Foundation
 import MLXLMCommon
 import Tokenizers
 
+// MARK: - ToolParameter helper
+
+struct ToolParameter {
+    let name: String
+    let schema: [String: any Sendable]
+    let isRequired: Bool
+
+    enum ParamType: String {
+        case string = "string"
+        case int = "integer"
+        case number = "number"
+        case bool = "boolean"
+    }
+
+    static func required(_ name: String, type: ParamType, description: String) -> ToolParameter {
+        ToolParameter(
+            name: name,
+            schema: ["type": type.rawValue, "description": description] as [String: any Sendable],
+            isRequired: true
+        )
+    }
+
+    static func optional(_ name: String, type: ParamType, description: String) -> ToolParameter {
+        ToolParameter(
+            name: name,
+            schema: ["type": type.rawValue, "description": description] as [String: any Sendable],
+            isRequired: false
+        )
+    }
+}
+
 // MARK: - Tool names
 
 enum JarvisToolName: String, CaseIterable {
@@ -12,8 +43,15 @@ enum JarvisToolName: String, CaseIterable {
     case getReminders        = "get_reminders"
     case getCurrentLocation  = "get_current_location"
     case analyzeImage        = "analyze_image"
+    case scanDocument        = "scan_document"
     case remember            = "remember"
     case recall              = "recall"
+    case webSearch           = "web_search"
+    case sendEmail           = "send_email"
+    case transcribeAudio     = "transcribe_audio"
+    case summarizeAudio      = "summarize_audio"
+    case searchDocuments     = "search_documents"
+    case listDocuments       = "list_documents"
 
     var displayName: String {
         switch self {
@@ -24,8 +62,15 @@ enum JarvisToolName: String, CaseIterable {
         case .getReminders:       return "Promemoria"
         case .getCurrentLocation: return "Posizione"
         case .analyzeImage:       return "Analisi immagine"
+        case .scanDocument:       return "Scansione documento"
         case .remember:           return "Memoria"
         case .recall:             return "Ricordo"
+        case .webSearch:          return "Ricerca web"
+        case .sendEmail:          return "Invia email"
+        case .transcribeAudio:    return "Trascrizione audio"
+        case .summarizeAudio:     return "Riassunto audio"
+        case .searchDocuments:    return "Cerca documenti"
+        case .listDocuments:      return "Documenti"
         }
     }
 
@@ -38,8 +83,15 @@ enum JarvisToolName: String, CaseIterable {
         case .getReminders:       return "bell"
         case .getCurrentLocation: return "location"
         case .analyzeImage:       return "eye"
+        case .scanDocument:       return "doc.viewfinder"
         case .remember:           return "brain.head.profile"
         case .recall:             return "brain"
+        case .webSearch:          return "globe"
+        case .sendEmail:          return "envelope"
+        case .transcribeAudio:    return "waveform.and.mic"
+        case .summarizeAudio:     return "text.quote"
+        case .searchDocuments:    return "doc.text.magnifyingglass"
+        case .listDocuments:      return "doc.stack"
         }
     }
 }
@@ -59,8 +111,15 @@ enum ToolDefinitions {
             getRemindersSpec,
             getCurrentLocationSpec,
             analyzeImageSpec,
+            scanDocumentSpec,
             rememberSpec,
             recallSpec,
+            webSearchSpec,
+            sendEmailSpec,
+            transcribeAudioSpec,
+            summarizeAudioSpec,
+            searchDocumentsSpec,
+            listDocumentsSpec,
         ]
     }
 
@@ -143,11 +202,16 @@ enum ToolDefinitions {
 
     static let analyzeImageSpec = makeTool(
         name: JarvisToolName.analyzeImage.rawValue,
-        description: "Analizza un'immagine usando la visione artificiale per estrarre testo (OCR) e classificare la scena.",
+        description: "Analizza un'immagine usando la visione artificiale per estrarre testo (OCR), classificare la scena e leggere codici QR/barcode.",
         parameters: [
             .required("source", type: .string, description: "Sorgente immagine: 'camera' per scattare una foto, 'library' per scegliere dalla libreria"),
             .optional("question", type: .string, description: "Domanda specifica sull'immagine (es: 'cosa c'è scritto?', 'cos'è questo?')"),
         ]
+    )
+
+    static let scanDocumentSpec = makeTool(
+        name: JarvisToolName.scanDocument.rawValue,
+        description: "Scansiona un documento cartaceo (ricevuta, fattura, documento) usando la fotocamera per estrarre il testo."
     )
 
     static let rememberSpec = makeTool(
@@ -165,5 +229,47 @@ enum ToolDefinitions {
         parameters: [
             .required("query", type: .string, description: "Argomento da cercare nella memoria (es: 'nome', 'preferenze')"),
         ]
+    )
+
+    static let webSearchSpec = makeTool(
+        name: JarvisToolName.webSearch.rawValue,
+        description: "Cerca informazioni sul web. Usa per notizie recenti, fatti, informazioni che non conosci.",
+        parameters: [
+            .required("query", type: .string, description: "La query di ricerca"),
+        ]
+    )
+
+    static let sendEmailSpec = makeTool(
+        name: JarvisToolName.sendEmail.rawValue,
+        description: "Compone e invia un'email. Apre il compositore email con i campi precompilati.",
+        parameters: [
+            .required("to", type: .string, description: "Indirizzo email del destinatario"),
+            .required("subject", type: .string, description: "Oggetto dell'email"),
+            .required("body", type: .string, description: "Testo del corpo dell'email"),
+        ]
+    )
+
+    static let transcribeAudioSpec = makeTool(
+        name: JarvisToolName.transcribeAudio.rawValue,
+        description: "Trascrive un file audio (nota vocale, registrazione) in testo usando il riconoscimento vocale on-device."
+    )
+
+    static let summarizeAudioSpec = makeTool(
+        name: JarvisToolName.summarizeAudio.rawValue,
+        description: "Trascrive e riassume un file audio. Utile per note vocali, podcast o registrazioni di riunioni."
+    )
+
+    static let searchDocumentsSpec = makeTool(
+        name: JarvisToolName.searchDocuments.rawValue,
+        description: "Cerca nei documenti importati dall'utente per trovare informazioni rilevanti.",
+        parameters: [
+            .required("query", type: .string, description: "La domanda o il testo da cercare nei documenti"),
+            .optional("top_k", type: .int, description: "Numero massimo di risultati da restituire (default: 3)"),
+        ]
+    )
+
+    static let listDocumentsSpec = makeTool(
+        name: JarvisToolName.listDocuments.rawValue,
+        description: "Elenca tutti i documenti importati dall'utente."
     )
 }

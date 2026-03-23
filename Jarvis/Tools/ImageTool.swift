@@ -1,19 +1,34 @@
 import Foundation
+import UIKit
 
+@MainActor
 final class ImageTool {
 
     private let visionService: VisionService
+    private let coordinator: ImagePickerCoordinator
 
-    init(visionService: VisionService) {
+    init(visionService: VisionService, coordinator: ImagePickerCoordinator) {
         self.visionService = visionService
+        self.coordinator = coordinator
     }
 
     // MARK: - Analyze image
 
     func analyzeImage(source: String, question: String? = nil) async throws -> String {
-        // Camera and photo-picker require UI coordination (UIImagePickerController /
-        // PHPickerViewController) which must be driven from the view layer.
-        // ToolRouter will wire the real implementation once the UI picker is available.
-        return "Funzionalità immagine disponibile. L'utente dovrà selezionare un'immagine dall'interfaccia."
+        let pickerSource: ImagePickerCoordinator.PickerSource =
+            source == "camera" ? .camera : .photoLibrary
+        guard let cgImage = await coordinator.requestImage(source: pickerSource, question: question) else {
+            return "Nessuna immagine selezionata."
+        }
+        return await visionService.analyzeImage(cgImage)
+    }
+
+    // MARK: - Scan document
+
+    func scanDocument() async throws -> String {
+        guard let cgImage = await coordinator.requestImage(source: .documentScanner) else {
+            return "Scansione annullata."
+        }
+        return await visionService.analyzeImage(cgImage)
     }
 }

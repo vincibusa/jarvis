@@ -69,7 +69,8 @@ struct SettingsView: View {
                 // MARK: Conversazione
                 Section("Conversazione") {
                     Button {
-                        llm.resetConversation()
+                        let facts = memoryService.factsForPrompt()
+                        llm.resetConversation(facts: facts)
                         dismiss()
                     } label: {
                         Label("Nuova conversazione", systemImage: "plus.bubble")

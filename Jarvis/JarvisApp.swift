@@ -17,6 +17,7 @@ struct JarvisApp: App {
             Conversation.self,
             Message.self,
             MemoryFact.self,
+            Document.self,
         ])
         do {
             swiftDataContainer = try ModelContainer(
@@ -34,6 +35,10 @@ struct JarvisApp: App {
                 .environment(llmService)
                 .modelContainer(swiftDataContainer)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    // Register synchronously on appear (before any Siri intent can call perform())
+                    JarvisEngine.shared.configure(llm: llmService)
+                }
         }
     }
 }

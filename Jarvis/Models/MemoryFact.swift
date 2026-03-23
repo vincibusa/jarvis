@@ -7,11 +7,13 @@ final class MemoryFact {
     var key: String
     var content: String
     var createdAt: Date
+    var lastAccessedAt: Date?
 
     init(key: String, content: String) {
         self.id = UUID()
         self.key = key
         self.content = content
         self.createdAt = Date()
+        self.lastAccessedAt = nil
     }
 }

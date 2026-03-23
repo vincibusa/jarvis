@@ -7,6 +7,7 @@ final class Conversation {
     var title: String
     var createdAt: Date
     var updatedAt: Date
+    var summary: String?
 
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message]
