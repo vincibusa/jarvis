@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Jarvis</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Jarvis gestisce gli eventi del calendario</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Jarvis analizza le foto che scatti</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Jarvis usa la posizione per risposte contestuali</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Jarvis usa il microfono per i comandi vocali</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Jarvis analizza le immagini dalla libreria</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Jarvis crea e legge i promemoria</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Jarvis usa il riconoscimento vocale on-device</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string></string>
+		<key>UIImageName</key>
+		<string></string>
+	</dict>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+</dict>
+</plist>
