@@ -25,6 +25,9 @@ final class ToolRouter: @unchecked Sendable {
     // Document tool — configured after DocumentService is available
     var documentTool: DocumentTool?
 
+    // Document creation tool — configured after DocumentShareCoordinator is available
+    var documentCreationTool: DocumentCreationTool?
+
     // MARK: - Init
 
     init(
@@ -52,6 +55,10 @@ final class ToolRouter: @unchecked Sendable {
 
     func configureDocuments(documentTool: DocumentTool) {
         self.documentTool = documentTool
+    }
+
+    func configureDocumentCreation(tool: DocumentCreationTool) {
+        self.documentCreationTool = tool
     }
 
     // MARK: - Dispatch
@@ -168,6 +175,45 @@ final class ToolRouter: @unchecked Sendable {
                 return "Il sistema documenti non è ancora configurato."
             }
             return tool.listDocuments()
+
+        case .createPdf:
+            guard let title   = arguments["title"]   as? String,
+                  let content = arguments["content"] as? String else {
+                throw ToolError.missingArgument("title / content")
+            }
+            let filename = arguments["filename"] as? String
+            guard let tool = documentCreationTool else {
+                return "Il sistema di creazione documenti non è ancora configurato."
+            }
+            return await tool.createPDF(title: title, content: content, filename: filename)
+
+        case .createWord:
+            guard let title   = arguments["title"]   as? String,
+                  let content = arguments["content"] as? String else {
+                throw ToolError.missingArgument("title / content")
+            }
+            let filename = arguments["filename"] as? String
+            guard let tool = documentCreationTool else {
+                return "Il sistema di creazione documenti non è ancora configurato."
+            }
+            return await tool.createDocx(title: title, content: content, filename: filename)
+
+        case .createExcel:
+            guard let headers = arguments["headers"] as? String,
+                  let rows    = arguments["rows"]    as? String else {
+                throw ToolError.missingArgument("headers / rows")
+            }
+            let sheetName = arguments["title"]    as? String ?? "Foglio1"
+            let filename  = arguments["filename"] as? String
+            guard let tool = documentCreationTool else {
+                return "Il sistema di creazione documenti non è ancora configurato."
+            }
+            return await tool.createXlsx(
+                sheetName: sheetName,
+                headers: headers,
+                rows: rows,
+                filename: filename
+            )
         }
     }
 

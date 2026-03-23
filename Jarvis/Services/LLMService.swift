@@ -199,10 +199,18 @@ final class LLMService {
                                 toolResult = "Errore: \(error.localizedDescription)"
                             }
 
+                            // Free GPU memory before next generation round
+                            MLX.GPU.clearCache()
+
+                            // Truncate long tool results to avoid context bloat
+                            let truncated = toolResult.count > 800
+                                ? String(toolResult.prefix(800)) + "…[troncato]"
+                                : toolResult
+
                             // Feed result back and continue the loop
                             thinkBuffer = ""
                             inThinkBlock = false
-                            nextPrompt = "[Risultato \(name)]: \(toolResult)"
+                            nextPrompt = "[Risultato \(name)]: \(truncated)"
                         }
                         // If no tool call or limit reached, the loop ends naturally
                     }
@@ -378,6 +386,15 @@ final class LLMService {
           Esempio: dopo list_documents hai visto "CV.pdf" → chiama search_documents("esperienza lavorativa") per leggerlo.
         - Per vedere quali documenti sono disponibili: usa list_documents.
         - IMPORTANTE: se l'utente ti ha già caricato un documento, NON cercarlo su web. Leggi il documento con search_documents.
+        - Per creare un documento PDF: usa create_pdf con titolo e contenuto.
+        - Per creare un documento Word editabile: usa create_word.
+        - Per creare un foglio Excel con dati tabulari: usa create_excel.
+        - Scegli il formato giusto: Excel per tabelle/numeri, PDF per report/lettere, Word per documenti da modificare.
+        - Contenuto PDF/Word: paragrafi separati da \\n\\n, intestazioni sezione con '## Titolo'.
+        - Contenuto Excel: headers separati da virgola, righe separate da \\n con celle separate da virgola.
+          Esempio headers: 'Nome,Età,Città'. Esempio rows: 'Mario,30,Roma\\nLuigi,25,Milano'.
+          I numeri vengono rilevati automaticamente — non aggiungere simboli di valuta o migliaia.
+        - Dopo aver creato il file apparirà automaticamente il pannello di condivisione.
 
         MEMORIA:
         - Usa 'remember' PROATTIVAMENTE per salvare informazioni importanti sull'utente:

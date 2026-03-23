@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var imagePickerCoordinator = ImagePickerCoordinator()
     @State private var emailComposerCoordinator = EmailComposerCoordinator()
     @State private var audioPickerCoordinator = AudioPickerCoordinator()
+    @State private var documentShareCoordinator = DocumentShareCoordinator()
     @State private var embeddingService = EmbeddingService()
     @State private var documentService: DocumentService?
 
@@ -22,6 +23,7 @@ struct ContentView: View {
                         .environment(imagePickerCoordinator)
                         .environment(audioPickerCoordinator)
                         .environment(emailComposerCoordinator)
+                        .environment(documentShareCoordinator)
                         .environment(\.documentService, documentService)
                 } else {
                     ModelDownloadView()
@@ -65,6 +67,10 @@ struct ContentView: View {
         let documentTool = DocumentTool(documentService: docService)
         router.configureDocuments(documentTool: documentTool)
         self.documentService = docService
+
+        // Configure document creation (PDF / Word / Excel)
+        let creationTool = DocumentCreationTool(coordinator: documentShareCoordinator)
+        router.configureDocumentCreation(tool: creationTool)
 
         llm.configureTools(router: router)
         JarvisEngine.shared.configure(llm: llm)

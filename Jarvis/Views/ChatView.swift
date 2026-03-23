@@ -7,6 +7,7 @@ struct ChatView: View {
     @Environment(ImagePickerCoordinator.self) private var imagePickerCoordinator
     @Environment(AudioPickerCoordinator.self) private var audioPickerCoordinator
     @Environment(EmailComposerCoordinator.self) private var emailComposerCoordinator
+    @Environment(DocumentShareCoordinator.self) private var documentShareCoordinator
     @Environment(\.documentService) private var documentService
 
     @State private var conversation: Conversation = Conversation()
@@ -26,6 +27,7 @@ struct ChatView: View {
     @State private var activePicker: ImagePickerCoordinator.PickerSource? = nil
     @State private var showAudioPicker = false
     @State private var showEmailComposer = false
+    @State private var showDocumentShare = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -173,6 +175,21 @@ struct ChatView: View {
         .onChange(of: emailComposerCoordinator.hasPendingEmail) { _, hasPending in
             if hasPending {
                 showEmailComposer = true
+            }
+        }
+        .sheet(isPresented: $showDocumentShare, onDismiss: {
+            documentShareCoordinator.deliverResult(shared: false)
+        }) {
+            if let url = documentShareCoordinator.pendingShareURL {
+                ActivityView(url: url) { shared in
+                    documentShareCoordinator.deliverResult(shared: shared)
+                    showDocumentShare = false
+                }
+            }
+        }
+        .onChange(of: documentShareCoordinator.hasPendingShare) { _, hasPending in
+            if hasPending {
+                showDocumentShare = true
             }
         }
         // Handle questions arriving from Siri (AskJarvisIntent sets pendingQuestion)

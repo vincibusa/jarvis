@@ -52,6 +52,9 @@ enum JarvisToolName: String, CaseIterable {
     case summarizeAudio      = "summarize_audio"
     case searchDocuments     = "search_documents"
     case listDocuments       = "list_documents"
+    case createPdf           = "create_pdf"
+    case createWord          = "create_word"
+    case createExcel         = "create_excel"
 
     var displayName: String {
         switch self {
@@ -71,6 +74,9 @@ enum JarvisToolName: String, CaseIterable {
         case .summarizeAudio:     return "Riassunto audio"
         case .searchDocuments:    return "Cerca documenti"
         case .listDocuments:      return "Documenti"
+        case .createPdf:          return "Crea PDF"
+        case .createWord:         return "Crea Word"
+        case .createExcel:        return "Crea Excel"
         }
     }
 
@@ -92,6 +98,9 @@ enum JarvisToolName: String, CaseIterable {
         case .summarizeAudio:     return "text.quote"
         case .searchDocuments:    return "doc.text.magnifyingglass"
         case .listDocuments:      return "doc.stack"
+        case .createPdf:          return "doc.richtext"
+        case .createWord:         return "doc.text"
+        case .createExcel:        return "tablecells"
         }
     }
 }
@@ -120,6 +129,9 @@ enum ToolDefinitions {
             summarizeAudioSpec,
             searchDocumentsSpec,
             listDocumentsSpec,
+            createPdfSpec,
+            createWordSpec,
+            createExcelSpec,
         ]
     }
 
@@ -271,5 +283,50 @@ enum ToolDefinitions {
     static let listDocumentsSpec = makeTool(
         name: JarvisToolName.listDocuments.rawValue,
         description: "Elenca tutti i documenti importati dall'utente."
+    )
+
+    static let createPdfSpec = makeTool(
+        name: JarvisToolName.createPdf.rawValue,
+        description: """
+        Crea un documento PDF. Usare per report, lettere, relazioni, riassunti. \
+        Separare i paragrafi con \\n\\n. \
+        Per intestazioni di sezione usare '## Titolo' su una riga a sé.
+        """,
+        parameters: [
+            .required("title",   type: .string, description: "Titolo del documento"),
+            .required("content", type: .string, description: "Contenuto completo. Paragrafi separati da \\n\\n, sezioni con '## Titolo'."),
+            .optional("filename", type: .string, description: "Nome file senza estensione (default: il titolo)"),
+        ]
+    )
+
+    static let createWordSpec = makeTool(
+        name: JarvisToolName.createWord.rawValue,
+        description: """
+        Crea un documento Word (.docx) editabile. \
+        Usare quando l'utente vuole modificare il documento in seguito. \
+        Stessa formattazione del PDF: paragrafi con \\n\\n, sezioni con '## Titolo'.
+        """,
+        parameters: [
+            .required("title",   type: .string, description: "Titolo del documento"),
+            .required("content", type: .string, description: "Contenuto completo. Paragrafi separati da \\n\\n, sezioni con '## Titolo'."),
+            .optional("filename", type: .string, description: "Nome file senza estensione (default: il titolo)"),
+        ]
+    )
+
+    static let createExcelSpec = makeTool(
+        name: JarvisToolName.createExcel.rawValue,
+        description: """
+        Crea un foglio Excel (.xlsx) con dati tabulari. \
+        Usare per tabelle, elenchi strutturati, confronti, dati numerici. \
+        Gli header vanno separati da virgola (es: 'Nome,Età,Città'). \
+        Ogni riga dati va su una linea separata, celle separate da virgola \
+        (es: 'Mario,30,Roma\\nLuigi,25,Milano'). I numeri vengono riconosciuti automaticamente.
+        """,
+        parameters: [
+            .required("headers", type: .string, description: "Intestazioni colonne separate da virgola. Es: 'Prodotto,Quantità,Prezzo'"),
+            .required("rows",    type: .string, description: "Righe dati: ogni riga su una linea (\\n), celle separate da virgola. Es: 'Mela,10,0.5\\nPera,5,0.8'"),
+            .optional("title",   type: .string, description: "Nome del foglio (default: 'Foglio1')"),
+            .optional("filename", type: .string, description: "Nome file senza estensione"),
+        ]
     )
 }

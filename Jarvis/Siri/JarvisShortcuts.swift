@@ -5,10 +5,10 @@ struct JarvisShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: AskJarvisIntent(),
             phrases: [
-                // Siri will prompt the user for the question (String params can't be captured in phrases)
+                "Chiedi a \(.applicationName) \(\.$question)",
+                "Domanda per \(.applicationName) \(\.$question)",
                 "Chiedi a \(.applicationName)",
-                "Parla con \(.applicationName)",
-                "Domanda per \(.applicationName)"
+                "Parla con \(.applicationName)"
             ],
             shortTitle: "Chiedi a Jarvis",
             systemImageName: "waveform"
