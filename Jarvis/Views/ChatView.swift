@@ -164,6 +164,8 @@ struct ChatView: View {
                     assistantMsg.content += chunk
                 }
             } catch {
+                print("❌ [Jarvis] Errore generazione: \(error)")
+                print("❌ [Jarvis] Errore dettaglio: \(error.localizedDescription)")
                 assistantMsg.content = "Mi dispiace, si è verificato un errore."
             }
 

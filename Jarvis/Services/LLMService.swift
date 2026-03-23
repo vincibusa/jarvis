@@ -52,7 +52,6 @@ final class LLMService {
 
     private func createSession(container: ModelContainer) {
         let tools: [ToolSpec]? = toolRouter != nil ? ToolDefinitions.allToolSpecs : nil
-        let router = self.toolRouter
 
         let session = ChatSession(
             container,
@@ -63,12 +62,7 @@ final class LLMService {
                 topP: 0.9,
                 repetitionPenalty: 1.1
             ),
-            tools: tools,
-            toolDispatch: router != nil ? { @Sendable toolCall in
-                let name = toolCall.function.name
-                let args = toolCall.function.arguments.mapValues { $0.anyValue }
-                return try await router!.execute(name: name, arguments: args)
-            } : nil
+            tools: tools
         )
         self.chatSession = session
     }
@@ -110,7 +104,7 @@ final class LLMService {
 
     /// Sends a message and returns an AsyncThrowingStream of text chunks.
     /// Filters out <think>...</think> reasoning blocks automatically.
-    /// When the model emits a tool call, executes it via ToolRouter and feeds result back.
+    /// Detects tool calls via streamDetails(), executes them, and feeds the result back.
     func send(prompt: String) -> AsyncThrowingStream<String, Error> {
         guard let session = chatSession else {
             return AsyncThrowingStream { continuation in
@@ -130,18 +124,61 @@ final class LLMService {
                 let startTime = Date()
 
                 do {
-                    for try await generation in session.streamResponse(to: prompt) {
-                        tokenCount += 1
-                        let filtered = self.processChunk(
-                            generation,
-                            buffer: &thinkBuffer,
-                            inBlock: &inThinkBlock
-                        )
-                        if !filtered.isEmpty {
-                            await MainActor.run {
-                                self.streamingText += filtered
+                    // Use streamDetails to detect tool calls
+                    var detectedToolCall: ToolCall? = nil
+
+                    for try await generation in session.streamDetails(to: prompt, images: [], videos: []) {
+                        if let chunk = generation.chunk {
+                            tokenCount += 1
+                            let filtered = self.processChunk(
+                                chunk,
+                                buffer: &thinkBuffer,
+                                inBlock: &inThinkBlock
+                            )
+                            if !filtered.isEmpty {
+                                await MainActor.run { self.streamingText += filtered }
+                                continuation.yield(filtered)
                             }
-                            continuation.yield(filtered)
+                        } else if let toolCall = generation.toolCall {
+                            detectedToolCall = toolCall
+                            print("🔧 [Jarvis] Tool call rilevata: \(toolCall.function.name)")
+                            print("🔧 [Jarvis] Argomenti: \(toolCall.function.arguments)")
+                        }
+                    }
+
+                    // Execute tool call and feed result back to model
+                    if let toolCall = detectedToolCall, let router = self.toolRouter {
+                        let name = toolCall.function.name
+                        let args = toolCall.function.arguments.mapValues { $0.anyValue }
+
+                        let toolResult: String
+                        do {
+                            toolResult = try await router.execute(name: name, arguments: args)
+                            print("✅ [Jarvis] Tool result: \(toolResult.prefix(200))")
+                        } catch {
+                            print("❌ [Jarvis] Tool error: \(error)")
+                            toolResult = "Errore: \(error.localizedDescription)"
+                        }
+
+                        // Feed result back as user message (Qwen3.5 template doesn't support .tool role)
+                        let followUp = "[Risultato \(name)]: \(toolResult)"
+                        thinkBuffer = ""
+                        inThinkBlock = false
+
+                        for try await generation in session.streamDetails(to: followUp, images: [], videos: []) {
+                            if let chunk = generation.chunk {
+                                tokenCount += 1
+                                let filtered = self.processChunk(
+                                    chunk,
+                                    buffer: &thinkBuffer,
+                                    inBlock: &inThinkBlock
+                                )
+                                if !filtered.isEmpty {
+                                    await MainActor.run { self.streamingText += filtered }
+                                    continuation.yield(filtered)
+                                }
+                            }
+                            // Ignore nested tool calls to avoid infinite loops
                         }
                     }
 
@@ -154,6 +191,7 @@ final class LLMService {
                     }
                     continuation.finish()
                 } catch {
+                    print("❌ [Jarvis] Stream error: \(error)")
                     await MainActor.run { self.state = .error(error.localizedDescription) }
                     continuation.finish(throwing: error)
                 }
@@ -234,25 +272,41 @@ final class LLMService {
     // MARK: - System prompt
 
     static func buildSystemPrompt(facts: [(key: String, content: String)] = []) -> String {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "it_IT")
-        df.dateFormat = "EEEE d MMMM yyyy"
-        let today = df.string(from: Date())
+        let now = Date()
+
+        let dateFmt = DateFormatter()
+        dateFmt.locale = Locale(identifier: "it_IT")
+        dateFmt.timeZone = TimeZone.current
+        dateFmt.dateFormat = "EEEE d MMMM yyyy"
+        let todayHuman = dateFmt.string(from: now)
+
+        let isoFmt = DateFormatter()
+        isoFmt.locale = Locale(identifier: "en_US_POSIX")
+        isoFmt.timeZone = TimeZone.current
+        isoFmt.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let nowISO = isoFmt.string(from: now)
+
+        let tomorrowISO = isoFmt.string(from: Calendar.current.date(byAdding: .day, value: 1, to: now)!)
 
         var prompt = """
-        Sei Jarvis, un assistente AI personale che gira completamente sul dispositivo dell'utente. \
-        Sei preciso, conciso e proattivo. Oggi è \(today).
+        Sei Jarvis, un assistente AI personale sul dispositivo dell'utente. \
+        Sei preciso, conciso e proattivo.
 
-        Rispondi sempre in italiano a meno che l'utente non scriva in un'altra lingua. \
-        Tieni le risposte brevi e dirette. Non usare formattazione markdown, scrivi in testo semplice.
+        DATA E ORA CORRENTE: \(todayHuman), \(nowISO)
+        DOMANI: \(String(tomorrowISO.prefix(10)))
 
-        Quando hai bisogno di informazioni in tempo reale (ora, eventi, posizione), usa sempre i tool disponibili. \
-        Non indovinare mai l'ora o la data — usa get_current_datetime. \
-        Non rispondere "non so" se puoi usare un tool per trovare la risposta.
+        Rispondi in italiano. Risposte brevi, testo semplice, no markdown.
+
+        REGOLE TOOL:
+        - Per ora/data: usa get_current_datetime.
+        - Per creare eventi: usa create_event con start_date in formato yyyy-MM-dd'T'HH:mm.
+        - "domani" = \(String(tomorrowISO.prefix(10))), "oggi" = \(String(nowISO.prefix(10))).
+        - Non inventare date o orari. Calcola sempre partendo dalla data corrente sopra.
+        - Non rispondere "non so" se puoi usare un tool.
         """
 
         if !facts.isEmpty {
-            prompt += "\n\n## Informazioni note sull'utente:\n"
+            prompt += "\n\nInformazioni utente:\n"
             for fact in facts {
                 prompt += "- \(fact.key): \(fact.content)\n"
             }
